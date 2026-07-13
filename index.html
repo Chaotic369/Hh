@@ -494,11 +494,16 @@ html.has-wallpaper.light-theme #uploadSquircleBtn {
     
 
     <div id="emptyState" style="position:relative; inset:auto; padding:60px 0; background:transparent; display:flex; flex-direction:column; align-items:center;">
-          <i class="fa-solid fa-cloud-open" style="font-size:36px; opacity:0.3; margin-bottom: 8px;"></i>
-          <div>NO DOCUMENTS DETECTED</div>
-        </div>
+              <i class="fa-solid fa-cloud-open" style="font-size:36px; opacity:0.3; margin-bottom: 8px;"></i>
+              <div>NO DOCUMENTS DETECTED</div>
+            </div>
 
-        <div id="storage-folders-container" style="display:flex; flex-wrap:nowrap; overflow-x:auto; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:4px; scrollbar-width:none;"></div>
+            <div id="storage-back-dropzone" class="folder-card" style="display:none; background:var(--bg-surface); color:var(--text-main); justify-content:center; border: 1px dashed var(--amber) !important; margin-bottom:16px; max-width:100%; width:100%; white-space:normal;">
+              <i class="fa-solid fa-arrow-left" style="color:var(--amber);"></i>
+              <div style="font-weight:600;">Drop here to move out of folder</div>
+            </div>
+
+            <div id="storage-folders-container" style="display:flex; flex-wrap:nowrap; overflow-x:auto; align-items:center; gap:8px; margin-bottom:12px; padding-bottom:4px; scrollbar-width:none;"></div>
 
         <div id="filesGridContainer"></div>
   </div>
@@ -1904,13 +1909,7 @@ window.dropIntoStorageFolder = async function(fileName, folderName) {
     hideProgress();
 };
 
-window.dropOutStorage = async function(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.style.transform = 'scale(1)';
-    event.currentTarget.style.color = 'var(--text-main)';
-    var fileName = event.dataTransfer.getData('text/plain');
-    
+window.executeDropOutStorage = async function(fileName) {
     if (!fileName || fileName.startsWith('n_') || fileName === 'drag_folder' || !window.currentStoragePath) return;
     
     let parts = window.currentStoragePath.split('/');
@@ -1929,6 +1928,17 @@ window.dropOutStorage = async function(event) {
         toast('Move failed', 'err');
     }
     hideProgress();
+};
+
+window.dropOutStorage = async function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.currentTarget) {
+        event.currentTarget.style.transform = 'scale(1)';
+        event.currentTarget.style.color = 'var(--text-main)';
+    }
+    var fileName = event.dataTransfer.getData('text/plain');
+    window.executeDropOutStorage(fileName);
 };
 
 window.getIconForExt = function(ext) {
@@ -2068,12 +2078,24 @@ window.loadFiles = async function() {
         });
     } else {
             folders.forEach(folder => {
-                                                    const card = document.createElement('div');
-                                                    card.className = 'folder-card';
-                                                    window.bindFolderEvents(card, 'storage', folder.name, folder.name, () => window.enterStorageFolder(folder.name));
-                                        card.innerHTML = `<i class="fa-regular fa-folder" style="color:var(--text-main); font-size:16px;"></i><div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${folder.name}</div>`;
-                                        if (fContainer) fContainer.appendChild(card); else container.appendChild(card);
-                                    });
+                                                                const card = document.createElement('div');
+                                                                card.className = 'folder-card';
+                                                                card.setAttribute('data-id', folder.name);
+                                                                window.bindFolderEvents(card, 'storage', folder.name, folder.name, () => window.enterStorageFolder(folder.name));
+                                                    card.innerHTML = `<i class="fa-regular fa-folder" style="color:var(--text-main); font-size:16px;"></i><div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${folder.name}</div>`;
+                                                    if (fContainer) fContainer.appendChild(card); else container.appendChild(card);
+                                        
+                                                    if (typeof Sortable !== 'undefined') {
+                                                        new Sortable(card, {
+                                                            group: { name: 'storageFiles', put: true },
+                                                            onAdd: function(evt) {
+                                                                let fileName = evt.item.getAttribute('data-id');
+                                                                window.dropIntoStorageFolder(fileName, folder.name);
+                                                                evt.item.style.display = 'none';
+                                                            }
+                                                        });
+                                                    }
+                                                });
         
             if (fContainer && !searchVal) {
                             const addBtn = document.createElement('button');
@@ -2125,10 +2147,11 @@ window.loadFiles = async function() {
                 }
 
                 const card = document.createElement('div');
-                                        card.className = 'file-card';
+                                                        card.className = 'file-card';
+                                                        card.setAttribute('data-id', file.name);
         
-                                // Block native context menu so it doesn't interrupt long-press sorting
-                                                card.oncontextmenu = (e) => { e.preventDefault(); return false; };
+                                                // Block native context menu so it doesn't interrupt long-press sorting
+                                                                card.oncontextmenu = (e) => { e.preventDefault(); return false; };
 
                                 let isChecked = window.selectedFiles.has(file.name);
                                                 let locHtml = (window.isFormatFilterMode || searchVal) ? `<div style="font-size:9px; color:var(--amber); margin-top:2px;">📁 ${file._parentPath}</div>` : '';
@@ -2156,15 +2179,45 @@ window.loadFiles = async function() {
                                                                             container.appendChild(card);
                                                                                                                                 });
                                             
-                                                                                                                        if (typeof Sortable !== 'undefined') {
-                                                                                                                            window.filesSortable = new Sortable(container, {
-                                                                                                                                animation: 250, delay: 250, delayOnTouchOnly: true, touchStartThreshold: 5,
-                                                                                                                                ghostClass: 'sortable-ghost', dragClass: 'sortable-drag'
-                                                                                                                            });
-                                                                                                                        }
+                                                                                                                        const backDropzoneFiles = document.getElementById('storage-back-dropzone');
+                                                                                                                                                                                                                                                if (backDropzoneFiles) {
+                                                                                                                                                                                                                                                    backDropzoneFiles.style.display = 'none';
+                                                                                                                                                                                                                                                    if (typeof Sortable !== 'undefined' && !backDropzoneFiles._sortableInitialized) {
+                                                                                                                                                                                                                                                        new Sortable(backDropzoneFiles, {
+                                                                                                                                                                                                                                                            group: { name: 'storageFiles', put: true },
+                                                                                                                                                                                                                                                            onAdd: function (evt) {
+                                                                                                                                                                                                                                                                var fileName = evt.item.getAttribute('data-id');
+                                                                                                                                                                                                                                                                if (fileName) {
+                                                                                                                                                                                                                                                                    window.executeDropOutStorage(fileName);
+                                                                                                                                                                                                                                                                    evt.item.style.display = 'none';
+                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                        });
+                                                                                                                                                                                                                                                        backDropzoneFiles._sortableInitialized = true;
+                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                }
+
+                                                                                                                                                                                                                                                if (typeof Sortable !== 'undefined') {
+                                                                                                                                                                                                                                                    window.filesSortable = new Sortable(container, {
+                                                                                                                                                                                                                                                        group: 'storageFiles',
+                                                                                                                                                                                                                                                        animation: 250, delay: 250, delayOnTouchOnly: true, touchStartThreshold: 5,
+                                                                                                                                                                                                                                                        ghostClass: 'sortable-ghost', dragClass: 'sortable-drag',
+                                                                                                                                                                                                                                                        setData: function (dataTransfer, dragEl) { dataTransfer.setData('text/plain', dragEl.getAttribute('data-id')); },
+                                                                                                                                                                                                                                                        onStart: function () {
+                                                                                                                                                                                                                                                            if (window.currentStoragePath) {
+                                                                                                                                                                                                                                                                let dz = document.getElementById('storage-back-dropzone');
+                                                                                                                                                                                                                                                                if (dz) dz.style.display = 'flex';
+                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                                                        onEnd: function () {
+                                                                                                                                                                                                                                                            let dz = document.getElementById('storage-back-dropzone');
+                                                                                                                                                                                                                                                            if (dz) dz.style.display = 'none';
+                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                    });
+                                                                                                                                                                                                                                                }
                                             
-                                                                                                                        cleanupScroll();
-                                                                                                                    };
+                                                                                                                                                                                                                                                cleanupScroll();
+                                                                                                                                                                                                                                            };
 
 window.uploadFilesRealtime = async function(files) {
     let fileArray = Array.from(files);
