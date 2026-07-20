@@ -1036,12 +1036,12 @@ window.syncCloudTheme = async function() {
 };
 
 window.stopMedia = function() {
-    const a = document.getElementById('audioPreviewSrc'); if(a) { a.pause(); a.src=''; }
-    const v = document.getElementById('videoPreviewSrc'); if(v) { v.pause(); v.src=''; }
-    document.getElementById('pdfPreviewSrc').src='';
-    const t = document.getElementById('textPreviewSrc'); if(t) { t.value=''; t.style.display='none'; }
-    const aC = document.getElementById('audioPreviewContainer'); if(aC) aC.style.display='none';
-};
+        const a = document.getElementById('audioPreviewSrc'); if(a) { a.pause(); a.src=''; }
+        const v = document.getElementById('videoPreviewSrc'); if(v) { v.pause(); v.src=''; }
+        const p = document.getElementById('pdfPreviewSrc'); if(p) { p.src=''; p.removeAttribute('srcdoc'); }
+        const t = document.getElementById('textPreviewSrc'); if(t) { t.value=''; t.style.display='none'; }
+        const aC = document.getElementById('audioPreviewContainer'); if(aC) aC.style.display='none';
+    };
 
 window.previewUniversal = function(event, url, ext) {
     if (event) event.stopPropagation();
@@ -1083,10 +1083,16 @@ window.previewUniversal = function(event, url, ext) {
                 document.getElementById('btn-fs-video').style.display = 'flex';
             }
         } else if (webExt.includes(ext)) {
-                const i = document.getElementById('pdfPreviewSrc');
-                i.style.display = 'block';
-                i.src = url;
-            } else if (gDocs.includes(ext)) {
+                        const i = document.getElementById('pdfPreviewSrc');
+                        i.style.display = 'block';
+                        i.removeAttribute('src');
+                        i.srcdoc = "<html><body style='color:#888; font-family:sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;'>Loading HTML...</body></html>";
+                        fetch(url).then(res => res.text()).then(html => {
+                            i.srcdoc = html;
+                        }).catch(err => {
+                            i.srcdoc = "<html><body style='color:red; font-family:sans-serif; padding:20px;'>Failed to load HTML content.</body></html>";
+                        });
+                    } else if (gDocs.includes(ext)) {
                 const i = document.getElementById('pdfPreviewSrc');
                 i.style.display = 'block';
                 i.src = 'https://docs.google.com/gview?embedded=true&url=' + encodeURIComponent(url);
@@ -2154,28 +2160,30 @@ window.loadFiles = async function() {
                                                                 card.oncontextmenu = (e) => { e.preventDefault(); return false; };
 
                                 let isChecked = window.selectedFiles.has(file.name);
-                                                let locHtml = (window.isFormatFilterMode || searchVal) ? `<div style="font-size:9px; color:var(--amber); margin-top:2px;">📁 ${file._parentPath}</div>` : '';
-                                                let openAction = isImage ? `window.previewImage(event, '${fileUrl}')` : `window.previewUniversal(event, '${fileUrl}', '${ext}')`;
+                                                                                let locHtml = (window.isFormatFilterMode || searchVal) ? `<div style="font-size:9px; color:var(--amber); margin-top:2px;">📁 ${file._parentPath}</div>` : '';
+                                                                                let openAction = isImage ? `window.previewImage(event, '${fileUrl}')` : `window.previewUniversal(event, '${fileUrl}', '${ext}')`;
+                                                                                let htmlPreviewBtn = (ext === 'html' || ext === 'htm') ? `<button class="action-mini-btn" style="box-shadow:none; background:transparent; width:32px; height:32px; color:var(--teal);" onclick="event.stopPropagation(); window.playHtml('${fileUrl}')" title="Live Preview"><i class="fa-solid fa-eye"></i></button>` : '';
 
-                card.innerHTML = `
-                    <div style="display:flex; gap:12px; align-items:center; flex:1; overflow:hidden; cursor:pointer;" onclick="${openAction}">
-                        <input type="checkbox" class="file-checkbox" ${isChecked ? 'checked' : ''} onclick="window.toggleFileSelection('${file.name}', event)">
-                        ${previewHtml}
-                        <div style="overflow:hidden; display:flex; flex-direction:column;">
-                            <div style="font-weight:600; font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${cleanName}">${cleanName}</div>
-                            <div style="font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
-                                <span>${formatBytes(file.metadata?.size || 0)}</span>
-                                <span style="opacity:0.4; margin:0 4px;">|</span>
-                                <span>${timeStr}</span>
-                            </div>
-                            ${locHtml}
-                                            </div>
-                                        </div>
-                                        <div style="display:flex; gap:4px; flex-shrink:0; align-items:center;">
-                                                                                    <button class="action-mini-btn" style="box-shadow:none; background:transparent; width:32px; height:32px; color:var(--blue);" onclick="event.stopPropagation(); window.triggerDownload('${fileUrl}', '${cleanName}')" title="Quick Download"><i class="fa-solid fa-download"></i></button>
-                                                                                    <button class="action-mini-btn" style="box-shadow:none; background:transparent; width:32px; height:32px;" onclick="window.openFileContextMenu('${file.name}', '${fileUrl}', event)" title="More Options"><i class="fa-solid fa-ellipsis-vertical"></i></button>
-                                                                                </div>
-                                                                            `;
+                                                card.innerHTML = `
+                                                    <div style="display:flex; gap:12px; align-items:center; flex:1; overflow:hidden; cursor:pointer;" onclick="${openAction}">
+                                                        <input type="checkbox" class="file-checkbox" ${isChecked ? 'checked' : ''} onclick="window.toggleFileSelection('${file.name}', event)">
+                                                        ${previewHtml}
+                                                        <div style="overflow:hidden; display:flex; flex-direction:column;">
+                                                            <div style="font-weight:600; font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${cleanName}">${cleanName}</div>
+                                                            <div style="font-size:11px; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">
+                                                                <span>${formatBytes(file.metadata?.size || 0)}</span>
+                                                                <span style="opacity:0.4; margin:0 4px;">|</span>
+                                                                <span>${timeStr}</span>
+                                                            </div>
+                                                            ${locHtml}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div style="display:flex; gap:4px; flex-shrink:0; align-items:center;">
+                                                                                                                    ${htmlPreviewBtn}
+                                                                                                                    <button class="action-mini-btn" style="box-shadow:none; background:transparent; width:32px; height:32px; color:var(--blue);" onclick="event.stopPropagation(); window.triggerDownload('${fileUrl}', '${cleanName}')" title="Quick Download"><i class="fa-solid fa-download"></i></button>
+                                                                                                                    <button class="action-mini-btn" style="box-shadow:none; background:transparent; width:32px; height:32px;" onclick="window.openFileContextMenu('${file.name}', '${fileUrl}', event)" title="More Options"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                                                                                                                </div>
+                                                                                                            `;
                                                                             container.appendChild(card);
                                                                                                                                 });
                                             
@@ -2408,6 +2416,25 @@ window.addEventListener('drop', (e) => {
         window.uploadFilesRealtime(e.dataTransfer.files);
     }
 });
+
+window.playHtml = async function(url) {
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write('<div style="font-family:sans-serif; padding:20px; color:#888;">Loading Live Preview...</div>');
+        try {
+            const res = await fetch(url);
+            const text = await res.text();
+            win.document.open();
+            win.document.write(text);
+            win.document.close();
+        } catch(e) {
+            win.document.body.innerHTML = '<div style="color:red; font-family:sans-serif; padding:20px;">Failed to load preview.</div>';
+            toast('Preview launch failed', 'err');
+        }
+    } else {
+        toast('Pop-up blocked!', 'warn');
+    }
+};
 
 window.copyLink = function(url) { navigator.clipboard.writeText(url).then(() => { toast('Link copied!', 'info'); }); };
 window.triggerDownload = async function(url, name) {
